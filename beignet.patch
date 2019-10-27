@@ -1,0 +1,149 @@
+Some GCC warnings fixes
+
+--- a/backend/src/ir/immediate.hpp
++++ b/backend/src/ir/immediate.hpp
+@@ -156,7 +156,7 @@ namespace ir {
+       else                                                      \
+         this->data.p = &defaultData;                            \
+       defaultData = 0ull;                                       \
+-      memcpy(this->data.FIELD, FIELD, ELEMNUM * getTypeSize()); \
++      memcpy(static_cast<void*>(this->data.FIELD), FIELD, ELEMNUM * getTypeSize()); \
+     }
+ 
+     DECL_CONSTRUCTOR(bool, b, TYPE_BOOL, elemNum)
+--- a/backend/src/libocl/include/ocl.h
++++ b/backend/src/libocl/include/ocl.h
+@@ -121,8 +121,8 @@
+ #define cl_khr_spir
+ #define cl_khr_fp16
+ #define cl_khr_3d_image_writes
+-#define cl_intel_subgroups
+-#define cl_intel_subgroups_short
++//#define cl_intel_subgroups
++//#define cl_intel_subgroups_short
+ 
+ #if __clang_major__*10 + __clang_minor__ > 40
+ #define cl_intel_required_subgroup_size
+--- a/utests/utest_generator.py
++++ b/utests/utest_generator.py
+@@ -143,15 +143,15 @@
+       printf_c("%s expect:%s\\n", log, ULPSIZE);
+ #else
+     if (std::isinf(cpu_data[index])){
+-      sprintf(log, "%s expect:%s\\n", log, INFORNAN);
++      loff += sprintf(log + loff, " expect:%s\\n", INFORNAN);
+       OCL_ASSERTM(std::isinf(gpu_data[index]) || fast_math,log);
+     }
+     else if (std::isnan(cpu_data[index])){
+-      sprintf(log, "%s expect:%s\\n", log, INFORNAN);
++      loff += sprintf(log + loff, " expect:%s\\n", INFORNAN);
+       OCL_ASSERTM(std::isnan(gpu_data[index]) || fast_math,log);
+     }
+     else{
+-      sprintf(log, "%s expect:%s\\n", log, ULPSIZE);
++      loff += sprintf(log + loff, " expect:%s\\n", ULPSIZE);
+       if (ULPSIZE < 0)
+             OCL_ASSERTM(gpu_data[index] == cpu_data[index], log);
+       else
+@@ -343,6 +343,7 @@
+   int index;
+   %s gpu_data[count_input] = {0}, cpu_data[count_input] = {0}, diff=0.0;
+   char log[1024] = {0};
++  int loff = 0;
+ 
+   OCL_CREATE_KERNEL(\"%s_%s\");
+   OCL_CREATE_BUFFER(buf[0], CL_MEM_READ_WRITE, count_input * sizeof(%s), NULL); 
+@@ -377,7 +378,7 @@
+     text = ''' memcpy(gpu_data, buf_data[0], sizeof(gpu_data)); '''
+     funcline += [ text ]
+ 
+-    funcsprintfa='    sprintf(log, \"'
++    funcsprintfa='    loff += sprintf(log + loff, \"'
+     funcsprintfb=''
+     if (self.returnVector(index) == 1 and self.argvector(0,index) != 1):
+       funccompare='''
+--- a/utests/utest_generator.py
++++ b/utests/utest_generator.py
+@@ -168,9 +168,9 @@
+         paraTypeList['string'],paraTypeList['string'],\
+         paraTypeList['string'],paraTypeList['%s'%(returnType)],\
+         paraTypeList['string'],paraTypeList['%s'%(returnType)],\
+-        paraTypeList['string'],paraTypeList['string'],\
+-        paraTypeList['string'],paraTypeList['string'],\
+-        paraTypeList['string'],paraTypeList['%s'%(returnType)])
++        paraTypeList['string'],\
++        paraTypeList['string'],\
++        paraTypeList['%s'%(returnType)])
+ 
+   return text
+ 
+--- a/utests/utest.hpp
++++ b/utests/utest.hpp
+@@ -122,7 +122,7 @@
+       std::cout << "    [SUCCESS]" << std::endl; \
+       UTest::retStatistics.passCount += 1; \
+     } \
+-    catch (Exception e) { \
++    catch (Exception& e) { \
+       std::cout << "    [FAILED]" << std::endl; \
+       std::cout << "    " << e.what() << std::endl; \
+       UTest::retStatistics.failCount++; \
+--- a/utests/utest_run.cpp
++++ a/utests/utest_run.cpp
+@@ -82,7 +82,7 @@
+         try {
+           UTest::run(optarg);
+         }
+-        catch (Exception e){
++        catch (Exception& e){
+           std::cout << "  " << e.what() << "    [SUCCESS]" << std::endl;
+         }
+ 
+@@ -97,7 +97,7 @@
+           UTest::runMultiThread(optarg);
+ #endif
+         }
+-        catch (Exception e){
++        catch (Exception& e){
+           std::cout << "  " << e.what() << "    [SUCCESS]" << std::endl;
+         }
+ 
+@@ -120,7 +120,7 @@
+         try {
+           UTest::runAll();
+         }
+-        catch (Exception e){
++        catch (Exception& e){
+           std::cout << "  " << e.what() << "    [SUCCESS]" << std::endl;
+         }
+ 
+@@ -130,7 +130,7 @@
+         try {
+           UTest::runAllNoIssue();
+         }
+-        catch (Exception e){
++        catch (Exception& e){
+           std::cout << "  " << e.what() << "    [SUCCESS]" << std::endl;
+         }
+ 
+@@ -140,7 +140,7 @@
+         try {
+           UTest::runAllBenchMark();
+         }
+-        catch (Exception e){
++        catch (Exception& e){
+           std::cout << "  " << e.what() << "    [SUCCESS]" << std::endl;
+         }
+ 
+--- a/backend/src/llvm/llvm_gen_backend.cpp
++++ b/backend/src/llvm/llvm_gen_backend.cpp
+@@ -4256,8 +4264,7 @@
+       case llvm::AtomicRMWInst::Min:  return ir::ATOMIC_OP_IMIN;
+       case llvm::AtomicRMWInst::UMax: return ir::ATOMIC_OP_UMAX;
+       case llvm::AtomicRMWInst::UMin: return ir::ATOMIC_OP_UMIN;
+-      case llvm::AtomicRMWInst::Nand:
+-      case llvm::AtomicRMWInst::BAD_BINOP: break;
++      default: break;
+     }
+     GBE_ASSERT(false);
+     return ir::ATOMIC_OP_INVALID;
