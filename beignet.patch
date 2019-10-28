@@ -58,7 +58,7 @@ Some GCC warnings fixes
      funcline += [ text ]
  
 -    funcsprintfa='    sprintf(log, \"'
-+    funcsprintfa='    loff += sprintf(log + loff, \"'
++    funcsprintfa='    loff = sprintf(log, \"'
      funcsprintfb=''
      if (self.returnVector(index) == 1 and self.argvector(0,index) != 1):
        funccompare='''
