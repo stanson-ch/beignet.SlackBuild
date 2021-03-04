@@ -11,6 +11,7 @@ llvm6-support.patch
 llvm7-support.patch
 llvm8-support.patch
 llvm9-support.patch
+llvm10-support.patch
 accept-old-create-queue.patch
 reduce-notfound-output2.patch
 coffeelake.patch
