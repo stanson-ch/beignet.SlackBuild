@@ -12,3 +12,9 @@ you don't want to install them, set the INCLUDE_HEADERS environment variable
 to 0 prior the build:
 
   INCLUDE_HEADERS=0 ./beignet.SlackBuild
+
+Stanson <me@stanson.link> :
+Since Beignet was abandoned by Intel, it does not follow LLVM releases, so
+I decided to just add LLVM/Clang 3.9 static libraries building to 
+beignet.SlackBuild. Then, beignet linked to necessary libraries statically
+and will work regardless of currently installed LLVM version.

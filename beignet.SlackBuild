@@ -38,6 +38,9 @@ TAG=${TAG:-_SBo}
 DOCS="README.md docs NEWS.mdwn COPYING"
 INTERNAL_NAME="Beignet-${VERSION}-Source"
 
+LLVM_VERSION=${LLVM_VERSION:-3.9.0}
+LLVM_SRC=llvm-${LLVM_VERSION}.src
+
 # Whether to include or remove OpenCL header files from final package
 INCLUDE_HEADERS=${INCLUDE_HEADERS:-1}
 
@@ -71,6 +74,27 @@ set -e
 
 rm -rf $PKG
 mkdir -p $TMP $PKG $OUTPUT
+
+cd $TMP
+rm -rf ${LLVM_SRC}
+tar xvf $CWD/llvm-${LLVM_VERSION}.src.tar.xz
+mkdir -p ${LLVM_SRC}/tools/clang
+tar xvf $CWD/cfe-${LLVM_VERSION}.src.tar.xz -C ${LLVM_SRC}/tools/clang --strip-components=1
+cd ${LLVM_SRC}
+
+patch -p1 < $CWD/0004-fix-lambda-parameter-name-redeclared.patch
+
+mkdir -p build
+cd build
+  cmake \
+    -DLLVM_TARGETS_TO_BUILD="X86" \
+    -DCMAKE_C_FLAGS="-Wno-implicit-fallthrough" \
+    -DCMAKE_CXX_FLAGS="-Wno-init-list-lifetime -Wno-unused-function -Wno-class-memaccess -Wno-redundant-move -Wno-deprecated-declarations -Wno-cast-function-type -Wno-implicit-fallthrough -Wno-deprecated-copy" \
+    -DCMAKE_BUILD_TYPE=Release ..
+  make
+  cmake -DCMAKE_INSTALL_PREFIX=install -P cmake_install.cmake
+cd ..
+
 cd $TMP
 rm -rf $INTERNAL_NAME
 tar xvf $CWD/${PRGNAM}-${VERSION}-source.tar.gz
@@ -95,6 +119,7 @@ cd build
   cmake \
     -DCMAKE_C_FLAGS:STRING="$SLKCFLAGS" \
     -DCMAKE_CXX_FLAGS:STRING="$SLKCFLAGS -DLLVM_DISABLE_ABI_BREAKING_CHECKS_ENFORCING=1" \
+    -DLLVM_INSTALL_DIR=$TMP/${LLVM_SRC}/build/install/bin \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DCMAKE_BUILD_TYPE=Release ..
   make
